@@ -1,0 +1,42 @@
+h1{
+    color: red;
+}
+
+body {
+    margin: 0;
+    background-color: #d9d9d9;
+    font-family: 'Patrick Hand', cursive;
+  }
+  
+  .container {
+    max-width: 900px;
+    margin: 60px auto;
+    padding: 20px 40px;
+  }
+  
+  h1 {
+    font-size: 48px;
+    margin-bottom: 40px;
+    color: #222;
+  }
+  
+  .post {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 28px;
+    margin: 18px 0;
+    text-decoration: none;
+    color: #222;
+    padding: 6px 0;
+    transition: 0.2s ease;
+  }
+  
+  .post:hover {
+    transform: translateX(6px);
+  }
+  
+  .date {
+    color: #9aa0a6;
+  }
+  
