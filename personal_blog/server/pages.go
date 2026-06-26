@@ -1,0 +1,177 @@
+package server
+
+import (
+	"bytes"
+	"log"
+	"net/http"
+	"strconv"
+
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
+	"github.com/go-chi/chi/v5"
+)
+
+type ReadibleArticle struct {
+	ID        int    `json:"id"`
+	CreatedAt string `json:"created_at"`
+	Title     string `json:"title"`
+	Text      string `json:"text"`
+}
+
+func ToReadableArticles(src []repository.Article) []ReadibleArticle {
+	out := make([]ReadibleArticle, 0, len(src))
+
+	for _, a := range src {
+		out = append(out, ReadibleArticle{
+			ID:        a.ID,
+			CreatedAt: a.CreatedAt.Format("January 2, 2006"),
+			Title:     a.Title,
+			Text:      a.Text,
+		})
+	}
+
+	return out
+}
+
+func (s Server) RenderTemplate(w http.ResponseWriter, status int, name string, data any) {
+	var buf bytes.Buffer
+
+	err := s.Templates.ExecuteTemplate(&buf, name, data)
+	if err != nil {
+		http.Error(w, "template rendering failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(status)
+	buf.WriteTo(w)
+}
+
+type homePageData struct {
+	Articles []ReadibleArticle
+	IsAdmin  bool
+}
+
+func (s Server) HomePage(w http.ResponseWriter, r *http.Request) {
+	var isAdmin bool
+	articles, err := s.ArticlesRepository.GetArticles()
+
+	if err != nil {
+		log.Printf("failed to load articles: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	cookie, err := r.Cookie("auth")
+
+	if err != nil {
+		if err != http.ErrNoCookie {
+			log.Println("cookie parse error:", err)
+		}
+		isAdmin = false
+	} else {
+		isAdmin = s.AuthCheck(cookie.Value)
+	}
+
+	data := homePageData{ToReadableArticles(articles), isAdmin}
+
+	s.RenderTemplate(w, http.StatusOK, "home.html", data)
+}
+
+type articlePageData struct {
+	Article ReadibleArticle
+}
+
+func (s Server) ArticlePage(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+
+	if err != nil {
+		s.RenderTemplate(w, http.StatusNotFound, "404.html", nil)
+		return
+	}
+
+	article, err := s.ArticlesRepository.GetArticle(id)
+
+	if err != nil {
+		s.RenderTemplate(w, http.StatusNotFound, "404.html", nil)
+		return
+	}
+
+	data := articlePageData{
+		Article: ReadibleArticle{
+			ID:        article.ID,
+			CreatedAt: article.CreatedAt.Format("January 2, 2006"),
+			Title:     article.Title,
+			Text:      article.Text,
+		},
+	}
+
+	s.RenderTemplate(w, http.StatusOK, "article.html", data)
+}
+
+type LoginPageData struct {
+	Err               string
+	NameErr           bool
+	PasswordErr       bool
+	BadCredentialsErr bool
+}
+
+func (s Server) LoginPage(w http.ResponseWriter, r *http.Request) {
+	errorMsg := getFlash(w, r)
+	nameError := false
+	passwordError := false
+	badCredentialsError := false
+
+	if errorMsg == ErrBothFieldsEmpty.Error() || errorMsg == ErrEmptyNameField.Error() {
+		nameError = true
+	}
+
+	if errorMsg == ErrBothFieldsEmpty.Error() || errorMsg == ErrEmptyPasswordField.Error() {
+		passwordError = true
+	}
+
+	if errorMsg == ErrBadCredentials.Error() {
+		badCredentialsError = true
+	}
+
+	s.RenderTemplate(w, http.StatusOK, "auth.html", LoginPageData{
+		errorMsg,
+		nameError,
+		passwordError,
+		badCredentialsError,
+	})
+}
+
+type AdminPageData struct {
+	Articles []ReadibleArticle
+	IsAdmin  bool
+}
+
+func (s Server) AdminPage(w http.ResponseWriter, r *http.Request) {
+	var isAdmin bool
+	articles, err := s.ArticlesRepository.GetArticles()
+
+	if err != nil {
+		log.Printf("failed to load articles: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	cookie, err := r.Cookie("auth")
+
+	if err != nil {
+		if err != http.ErrNoCookie {
+			log.Println("cookie parse error:", err)
+		}
+		isAdmin = false
+	} else {
+		isAdmin = s.AuthCheck(cookie.Value)
+	}
+
+	if isAdmin != true {
+		http.Redirect(w, r, "/login", http.StatusForbidden)
+	}
+
+	data := AdminPageData{ToReadableArticles(articles), isAdmin}
+
+	s.RenderTemplate(w, http.StatusOK, "admin_panel.html", data)
+}

@@ -7,53 +7,33 @@
     <title>Home Page</title>
 </head>
 <body>
-    <div class="container">
-        <h1>Personal Blog</h1>
-    
-        <a href="post1.html" class="post">
-          <span>My first article</span>
-          <span class="date">August 7, 2024</span>
-        </a>
-    
-        <a href="post2.html" class="post">
-          <span>Second article</span>
-          <span class="date">August 4, 2024</span>
-        </a>
-    
-        <a href="post3.html" class="post">
-          <span>Third article</span>
-          <span class="date">August 1, 2024</span>
-        </a>
-    
-        <a href="post4.html" class="post">
-          <span>Fourth article</span>
-          <span class="date">July 30, 2024</span>
-        </a>
-    
-        <a href="post5.html" class="post">
-          <span>Fifth article</span>
-          <span class="date">July 21, 2024</span>
-        </a>
-    
-        <a href="post6.html" class="post">
-          <span>Sixth article</span>
-          <span class="date">July 15, 2024</span>
-        </a>
-    
-        <a href="post7.html" class="post">
-          <span>Seventh article</span>
-          <span class="date">July 8, 2024</span>
-        </a>
-    
-        <a href="post8.html" class="post">
-          <span>Eighth article</span>
-          <span class="date">July 4, 2024</span>
-        </a>
-    
-        <a href="post9.html" class="post">
-          <span>Ninth article</span>
-          <span class="date">July 1, 2024</span>
-        </a>
-      </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+        <a href="/" class="logo">Personal Blog</a>
+        <nav class="nav">
+            <a href="/admin" class="admin-link">Admin panel</a>
+            {{ if .IsAdmin }}
+              <span>Admin</span>
+            {{ else }}
+            <a href="/login" class="login-btn">Sign in</a>
+            {{end}}
+        </nav>
+    </div>
+</header>
+<div class="container">
+    <h1>Personal Blog</h1>
+
+    {{ range .Articles }}
+      <a href="/article/{{ .ID }}" class="post">
+        <span>{{ .Title }}</span>
+        <span class="date">{{ .CreatedAt }}</span>
+      </a>
+    {{ else }}
+      <p>No articles yet.</p>
+    {{ end }}
+
+</div>
+
 </body>
 </html>
