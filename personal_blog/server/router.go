@@ -42,6 +42,7 @@ func (s Server) Routes() http.Handler {
 	r.Route("/api", func(api chi.Router) {
 		api.Get("/articles", s.GetArticles)
 		api.Get("/articles/{id}", s.GetArticle)
+		api.Post("/articles", s.PostArticle)
 	})
 
 	r.Get("/", s.HomePage)
@@ -55,7 +56,8 @@ func (s Server) Routes() http.Handler {
 		api.Get("/", s.AdminPage)
 		api.Post("/change/{id}", s.PostArticle)
 		api.Post("/delete/{id}", s.DeleteArticle)
-		api.Get("/new", s.GetArticle)
+		api.Get("/new", s.AddArticle)
+		api.Post("/new", s.PostArticle)
 	})
 
 	return r

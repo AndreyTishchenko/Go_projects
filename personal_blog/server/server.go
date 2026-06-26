@@ -7,7 +7,7 @@ import (
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
 )
 
-var ErrEmptyPasswordField, ErrEmptyNameField, ErrBothFieldsEmpty, ErrBadCredentials, ErrInternalServerError, ErrInvalidFormat = errors.New("Empty Password Field"), errors.New("Empty Name Field"), errors.New("Empty Both auth fields"), errors.New("Bad credentials"), errors.New("Internal Server Error"), errors.New("Invalid Format")
+var ErrEmptyPasswordField, ErrEmptyNameField, ErrBothFieldsEmpty, ErrBadCredentials, ErrEmptyTitleField, ErrEmptyBodyField, ErrInternalServerError, ErrInvalidFormat = errors.New("Empty Password Field"), errors.New("Empty Name Field"), errors.New("Empty Both fields"), errors.New("Bad credentials"), errors.New("Empty Title Field"), errors.New("Empty Body Field"), errors.New("Internal Server Error"), errors.New("Invalid Format")
 
 type Server struct {
 	ArticlesRepository repository.ArticlesRepository

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
 	"github.com/go-chi/chi/v5"
@@ -109,7 +111,6 @@ func (s Server) ArticlePage(w http.ResponseWriter, r *http.Request) {
 }
 
 type LoginPageData struct {
-	Err               string
 	NameErr           bool
 	PasswordErr       bool
 	BadCredentialsErr bool
@@ -134,7 +135,6 @@ func (s Server) LoginPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.RenderTemplate(w, http.StatusOK, "auth.html", LoginPageData{
-		errorMsg,
 		nameError,
 		passwordError,
 		badCredentialsError,
@@ -169,9 +169,95 @@ func (s Server) AdminPage(w http.ResponseWriter, r *http.Request) {
 
 	if isAdmin != true {
 		http.Redirect(w, r, "/login", http.StatusForbidden)
+		return
 	}
 
 	data := AdminPageData{ToReadableArticles(articles), isAdmin}
 
 	s.RenderTemplate(w, http.StatusOK, "admin_panel.html", data)
+}
+
+type AddArticleData struct {
+	Date      string
+	TitleErr  bool
+	BodyErr   bool
+	TitleText string
+	BodyText  string
+}
+
+func (s Server) AddArticle(w http.ResponseWriter, r *http.Request) {
+	var isAdmin bool
+	title_text := ""
+	body_text := ""
+
+	cookie, err := r.Cookie("auth")
+
+	if err != nil {
+		if err != http.ErrNoCookie {
+			log.Println("cookie parse error:", err)
+		}
+		isAdmin = false
+	} else {
+		isAdmin = s.AuthCheck(cookie.Value)
+	}
+
+	if isAdmin != true {
+		http.Redirect(w, r, "/login", http.StatusForbidden)
+		return
+	}
+
+	title_text_cookie, err := r.Cookie("Title")
+	if err == nil {
+		title_text_text, err := url.QueryUnescape(title_text_cookie.Value)
+		if err == nil {
+			title_text = title_text_text
+		}
+	}
+	body_text_cookie, err := r.Cookie("Body")
+	if err == nil {
+		body_text_text, err := url.QueryUnescape(body_text_cookie.Value)
+		if err == nil {
+			body_text = body_text_text
+		}
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Title",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1, // seconds
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Body",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1, // seconds
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	errorMsg := getFlash(w, r)
+
+	titleError := false
+	bodyError := false
+
+	if errorMsg == ErrBothFieldsEmpty.Error() || errorMsg == ErrEmptyTitleField.Error() {
+		titleError = true
+	}
+
+	if errorMsg == ErrBothFieldsEmpty.Error() || errorMsg == ErrEmptyBodyField.Error() {
+		bodyError = true
+	}
+
+	data := AddArticleData{
+		time.Now().Format("January 2, 2006"),
+		titleError,
+		bodyError,
+		title_text,
+		body_text,
+	}
+
+	s.RenderTemplate(w, http.StatusOK, "add_article_form.html", data)
 }
