@@ -261,3 +261,107 @@ func (s Server) AddArticle(w http.ResponseWriter, r *http.Request) {
 
 	s.RenderTemplate(w, http.StatusOK, "add_article_form.html", data)
 }
+
+type ChangeArticleData struct {
+	Date      string
+	TitleErr  bool
+	BodyErr   bool
+	TitleText string
+	BodyText  string
+	ID        int
+}
+
+func (s Server) ChangeArticle(w http.ResponseWriter, r *http.Request) {
+	var isAdmin bool
+	title_text := ""
+	body_text := ""
+
+	cookie, err := r.Cookie("auth")
+
+	if err != nil {
+		if err != http.ErrNoCookie {
+			log.Println("cookie parse error:", err)
+		}
+		isAdmin = false
+	} else {
+		isAdmin = s.AuthCheck(cookie.Value)
+	}
+
+	if isAdmin != true {
+		http.Redirect(w, r, "/login", http.StatusForbidden)
+		return
+	}
+
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid article id", http.StatusBadRequest)
+		return
+	}
+
+	article, err := s.ArticlesRepository.GetArticle(id)
+	if err != nil {
+		http.Error(w, "article not found", http.StatusNotFound)
+		return
+	}
+
+	title_text = article.Title
+	body_text = article.Text
+
+	title_text_cookie, err := r.Cookie("Title")
+	if err == nil {
+		title_text_text, err := url.QueryUnescape(title_text_cookie.Value)
+		if err == nil {
+			title_text = title_text_text
+		}
+	}
+
+	body_text_cookie, err := r.Cookie("Body")
+	if err == nil {
+		body_text_text, err := url.QueryUnescape(body_text_cookie.Value)
+		if err == nil {
+			body_text = body_text_text
+		}
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Title",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Body",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	errorMsg := getFlash(w, r)
+
+	titleError := false
+	bodyError := false
+
+	if errorMsg == ErrBothFieldsEmpty.Error() || errorMsg == ErrEmptyTitleField.Error() {
+		titleError = true
+	}
+
+	if errorMsg == ErrBothFieldsEmpty.Error() || errorMsg == ErrEmptyBodyField.Error() {
+		bodyError = true
+	}
+
+	data := ChangeArticleData{
+		time.Now().Format("January 2, 2006"),
+		titleError,
+		bodyError,
+		title_text,
+		body_text,
+		id,
+	}
+
+	s.RenderTemplate(w, http.StatusOK, "change_article_form.html", data)
+}

@@ -54,7 +54,8 @@ func (s Server) Routes() http.Handler {
 		api.Use(s.AdminOnly)
 
 		api.Get("/", s.AdminPage)
-		api.Post("/change/{id}", s.PostArticle)
+		api.Get("/change/{id}", s.ChangeArticle)
+		api.Post("/change/{id}", s.UpdateArticle)
 		api.Post("/delete/{id}", s.DeleteArticle)
 		api.Get("/new", s.AddArticle)
 		api.Post("/new", s.PostArticle)

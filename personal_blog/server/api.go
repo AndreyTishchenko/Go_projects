@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -246,38 +247,185 @@ func (s Server) PostArticle(w http.ResponseWriter, r *http.Request) {
 func (s Server) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	var article ArticlePayload
 
-	err := json.NewDecoder(r.Body).Decode(&article)
+	isBrowser := r.Header.Get("Content-Type") != "application/json"
 
+	isAdmin := false
+
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		println("invalid request body ", err.Error())
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, "invalid article id", http.StatusBadRequest)
 		return
 	}
 
-	if article.Title == "" || article.Body == "" {
-		http.Error(w, "title and body are required", http.StatusBadRequest)
-		return
-	}
+	if isBrowser {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
+		article.Body = r.FormValue("body")
+		article.Title = r.FormValue("title")
 
-	if err != nil {
-		http.Error(w, "invalid article id format", http.StatusBadRequest)
-		return
+		http.SetCookie(w, &http.Cookie{
+			Name:     "Title",
+			Value:    url.QueryEscape(article.Title),
+			Path:     "/",
+			MaxAge:   60,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "Body",
+			Value:    url.QueryEscape(article.Body),
+			Path:     "/",
+			MaxAge:   60,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		if article.Body == "" && article.Title == "" {
+			SetFlash(w, ErrBothFieldsEmpty.Error())
+			http.Redirect(w, r, fmt.Sprintf("/admin/change/%d", id), http.StatusSeeOther)
+			return
+		} else if article.Body == "" {
+			SetFlash(w, ErrEmptyBodyField.Error())
+			http.Redirect(w, r, fmt.Sprintf("/admin/change/%d", id), http.StatusSeeOther)
+			return
+		} else if article.Title == "" {
+			SetFlash(w, ErrEmptyTitleField.Error())
+			http.Redirect(w, r, fmt.Sprintf("/admin/change/%d", id), http.StatusSeeOther)
+			return
+		}
+
+		cookie, err := r.Cookie("auth")
+
+		if err != nil {
+			if err != http.ErrNoCookie {
+				log.Println("cookie parse error:", err)
+			}
+			isAdmin = false
+		} else {
+			isAdmin = s.AuthCheck(cookie.Value)
+		}
+
+		if isAdmin != true {
+			http.Redirect(w, r, "/login", http.StatusForbidden)
+			return
+		}
+	} else {
+		if r.Method != http.MethodPost {
+			http.Error(w, "invalid method", http.StatusMethodNotAllowed)
+			return
+		}
+
+		err := json.NewDecoder(r.Body).Decode(&article)
+		if err != nil {
+			http.Error(w, "invalid format", http.StatusBadRequest)
+			return
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "Title",
+			Value:    url.QueryEscape(article.Title),
+			Path:     "/",
+			MaxAge:   60,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "Body",
+			Value:    url.QueryEscape(article.Body),
+			Path:     "/",
+			MaxAge:   60,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		if article.Title == "" || article.Body == "" {
+			http.Error(w, "title and body are required", http.StatusBadRequest)
+			return
+		}
+
+		cookie, err := r.Cookie("auth")
+
+		if err != nil {
+			if err != http.ErrNoCookie {
+				log.Println("cookie parse error:", err)
+				http.Error(w, "Cannot read cookies", http.StatusInternalServerError)
+				return
+			}
+			isAdmin = false
+		} else {
+			isAdmin = s.AuthCheck(cookie.Value)
+		}
+
+		if isAdmin != true {
+			http.Error(w, "Must be logged in", http.StatusForbidden)
+			return
+		}
 	}
 
 	err = s.ArticlesRepository.UpdateArticle(id, article.Title, article.Body)
 
-	if err != nil {
-		if errors.Is(err, repository.ErrArticleNotFound) {
-			println("Article is not found:", err)
-			http.Error(w, "Article is not found", http.StatusNotFound)
+	if isBrowser {
+		if err != nil {
+			println("failed to update article", err.Error())
+			http.Redirect(w, r, fmt.Sprintf("/admin/change/%d", id), http.StatusInternalServerError)
 			return
 		}
-		println("Cannot get article:", err)
-		http.Error(w, "Cannot change article", http.StatusInternalServerError)
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "Title",
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "Body",
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
 		return
+	} else {
+		if err != nil {
+			println("failed to update article", err.Error())
+			http.Error(w, "failed to update article", http.StatusInternalServerError)
+			return
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "Title",
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "Body",
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		})
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]int{
+			"id": id,
+		})
 	}
 }
 
