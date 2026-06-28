@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/rand"
 	"errors"
 	"html/template"
 
@@ -8,6 +9,19 @@ import (
 )
 
 var ErrEmptyPasswordField, ErrEmptyNameField, ErrBothFieldsEmpty, ErrBadCredentials, ErrEmptyTitleField, ErrEmptyBodyField, ErrInternalServerError, ErrInvalidFormat = errors.New("Empty Password Field"), errors.New("Empty Name Field"), errors.New("Empty Both fields"), errors.New("Bad credentials"), errors.New("Empty Title Field"), errors.New("Empty Body Field"), errors.New("Internal Server Error"), errors.New("Invalid Format")
+
+func NewSessionToken() string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+	b := make([]byte, 32)
+	rand.Read(b) // In production you may want to check the error.
+
+	for i := range b {
+		b[i] = charset[int(b[i])%len(charset)]
+	}
+
+	return string(b)
+}
 
 type Server struct {
 	ArticlesRepository repository.ArticlesRepository
@@ -19,7 +33,7 @@ func NewServerConfig(r repository.ArticlesRepository, t *template.Template) Serv
 	return Server{
 		ArticlesRepository: r,
 		Templates:          t,
-		adminkey:           "3282h7scc9dh932n9fsndn23noxc",
+		adminkey:           NewSessionToken(),
 	}
 }
 
