@@ -26,14 +26,15 @@ func decodeAuth(r *http.Request) (authPayload, error) {
 		if err != nil {
 			return p, ErrInvalidFormat
 		}
+		return p, nil
+	} else {
+		if err := r.ParseForm(); err != nil {
+			return p, ErrInternalServerError
+		}
+		p.Name = r.FormValue("name")
+		p.Password = r.FormValue("password")
+		return p, nil
 	}
-
-	if err := r.ParseForm(); err != nil {
-		return p, ErrInternalServerError
-	}
-	p.Name = r.FormValue("name")
-	p.Password = r.FormValue("password")
-	return p, nil
 }
 
 func (s Server) authenticate(r *http.Request) (string, error) {
