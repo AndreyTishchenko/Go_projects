@@ -91,6 +91,10 @@ func (r *ArticlesMemoryRepository) AddArticle(title string, body string) (int, e
 
 	id, err := r.generateID()
 
+	if err != nil {
+		return 0, err
+	}
+
 	article := Article{id, now, title, body}
 
 	jsonArticle, err := json.Marshal(article)
@@ -141,18 +145,12 @@ func (r *ArticlesMemoryRepository) UpdateArticle(id int, title string, body stri
 		return err
 	}
 
-	// err = os.WriteFile(path, jsonArticle, 0644)
-	file, err := os.OpenFile(path, os.O_WRONLY, 0644)
+	err = os.WriteFile(path, jsonArticle, 0644)
 
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return ErrArticleNotFound
 		}
-		return err
-	}
-
-	_, err = file.Write(jsonArticle)
-	if err != nil {
 		return err
 	}
 
