@@ -24,7 +24,6 @@ type ArticlesRepository interface {
 	AddArticle(title string, body string) (int, error)
 	DeleteArticle(id int) error
 	UpdateArticle(id int, title string, body string) error
-	generateID() (int, error)
 }
 
 type ArticlesMemoryRepository struct {
