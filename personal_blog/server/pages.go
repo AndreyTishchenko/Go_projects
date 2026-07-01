@@ -168,7 +168,7 @@ func (s Server) AdminPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isAdmin != true {
-		http.Redirect(w, r, "/login", http.StatusForbidden)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
@@ -202,7 +202,7 @@ func (s Server) AddArticle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isAdmin != true {
-		http.Redirect(w, r, "/login", http.StatusForbidden)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
@@ -288,7 +288,7 @@ func (s Server) ChangeArticle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isAdmin != true {
-		http.Redirect(w, r, "/login", http.StatusForbidden)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 

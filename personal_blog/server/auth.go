@@ -26,15 +26,14 @@ func decodeAuth(r *http.Request) (authPayload, error) {
 		if err != nil {
 			return p, ErrInvalidFormat
 		}
-		return p, nil
 	} else {
 		if err := r.ParseForm(); err != nil {
 			return p, ErrInternalServerError
 		}
 		p.Name = r.FormValue("name")
 		p.Password = r.FormValue("password")
-		return p, nil
 	}
+	return p, nil
 }
 
 func (s Server) authenticate(r *http.Request) (string, error) {
@@ -65,7 +64,7 @@ func (s Server) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token, err := s.authenticate(r)
-	isBrowser := r.Header.Get("Content-Type") != "application/json"
+	isBrowser := !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
 
 	if err != nil {
 		if isBrowser {
