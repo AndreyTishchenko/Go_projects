@@ -130,6 +130,13 @@ func (r *ArticlesMemoryRepository) DeleteArticle(id int) error {
 func (r *ArticlesMemoryRepository) UpdateArticle(id int, title string, body string) error {
 	path := filepath.Join(r.DbPath, strconv.Itoa(id)+".json")
 
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ErrArticleNotFound
+		}
+		return err
+	}
+
 	now := time.Now()
 
 	article := Article{
