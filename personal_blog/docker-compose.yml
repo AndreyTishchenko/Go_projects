@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    environment:
+      PORT: ${PORT:-3030}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      ADMIN_LOGIN: ${ADMIN_LOGIN:-admin123}
+    ports:
+      - "${PORT:-3030}:${PORT:-3030}"

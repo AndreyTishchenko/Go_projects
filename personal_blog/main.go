@@ -5,15 +5,19 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/server"
 )
 
-const portNumber = ":8080"
-
 func main() {
+	portNumber := ":" + os.Getenv("PORT")
+
+	if portNumber == ":" {
+		portNumber = ":8080"
+	}
 	tmpl := template.Must(template.ParseGlob("templates/*.html"))
 
 	s := server.NewServerConfig(&repository.ArticlesMemoryRepository{
@@ -21,7 +25,7 @@ func main() {
 	}, tmpl)
 
 	http_server := http.Server{
-		Addr:              "localhost:8080",
+		Addr:              portNumber,
 		Handler:           s.Routes(),
 		ReadTimeout:       5 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
