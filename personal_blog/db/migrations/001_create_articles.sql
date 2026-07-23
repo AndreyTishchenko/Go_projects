@@ -1,0 +1,12 @@
+-- +goose Up
+
+CREATE TABLE articles (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    title TEXT NOT NULL,
+    text TEXT NOT NULL
+);
+
+-- +goose Down
+
+DROP TABLE articles;

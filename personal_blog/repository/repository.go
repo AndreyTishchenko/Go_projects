@@ -1,14 +1,12 @@
 package repository
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Article struct {
@@ -32,52 +30,91 @@ type ArticlesMemoryRepository struct {
 
 var ErrArticleNotFound = errors.New("article not found")
 
-func (r *ArticlesMemoryRepository) GetArticles() ([]Article, error) {
-	articles := []Article{}
-	err := filepath.WalkDir(r.DbPath, func(path string, d fs.DirEntry, err2 error) error {
-		if err2 != nil {
-			return err2
-		}
+type ArticlesPostgresRepository struct {
+	db *pgxpool.Pool
+}
 
-		if !d.IsDir() && strings.HasSuffix(d.Name(), ".json") {
-			fileData, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
+func NewArticlesPostgresRepository(db *pgxpool.Pool) *ArticlesPostgresRepository {
+	return &ArticlesPostgresRepository{
+		db: db,
+	}
+}
 
-			var article Article
-			if err := json.Unmarshal(fileData, &article); err != nil {
-				return err
-			}
+func (r *ArticlesPostgresRepository) GetArticles() ([]Article, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
 
-			articles = append(articles, article)
-		}
+	defer cancel()
 
-		return nil
-	})
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT id, created_at, title, text
+		FROM articles
+		ORDER BY created_at DESC
+		`,
+	)
 
 	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	articles := make([]Article, 0)
+
+	for rows.Next() {
+		var article Article
+
+		err := rows.Scan(
+			&article.ID,
+			&article.CreatedAt,
+			&article.Title,
+			&article.Text,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		articles = append(articles, article)
+	}
+
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
 	return articles, nil
 }
 
-func (r *ArticlesMemoryRepository) GetArticle(id int) (Article, error) {
+func (r *ArticlesPostgresRepository) GetArticle(id int) (Article, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
 	var article Article
 
-	path := filepath.Join(r.DbPath, strconv.Itoa(id)+".json")
+	err := r.db.QueryRow(
+		ctx,
+		`
+		SELECT id, created_at, title, text
+		FROM articles
+		WHERE id = $1
+		`,
+		id,
+	).Scan(
+		&article.ID,
+		&article.CreatedAt,
+		&article.Title,
+		&article.Text,
+	)
 
-	article_json_data, err := os.ReadFile(path)
-
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return Article{}, ErrArticleNotFound
-		}
-		return Article{}, err
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Article{}, ErrArticleNotFound
 	}
-
-	err = json.Unmarshal(article_json_data, &article)
 
 	if err != nil {
 		return Article{}, err
@@ -86,103 +123,85 @@ func (r *ArticlesMemoryRepository) GetArticle(id int) (Article, error) {
 	return article, nil
 }
 
-func (r *ArticlesMemoryRepository) AddArticle(title string, body string) (int, error) {
-	now := time.Now()
+func (r *ArticlesPostgresRepository) AddArticle(title string, body string) (int, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
 
-	id, err := r.generateID()
+	var id int
+
+	err := r.db.QueryRow(
+		ctx,
+		`
+		INSERT INTO articles (title, text)
+		VALUES ($1, $2)
+		RETURNING id
+		`,
+		title,
+		body,
+	).Scan(&id)
 
 	if err != nil {
-		return 0, err
-	}
-
-	article := Article{id, now, title, body}
-
-	jsonArticle, err := json.Marshal(article)
-
-	if err != nil {
-		return 0, err
-	}
-
-	path := filepath.Join(r.DbPath, strconv.Itoa(id)+".json")
-
-	if err := os.WriteFile(path, jsonArticle, 0644); err != nil {
 		return 0, err
 	}
 
 	return id, nil
 }
 
-func (r *ArticlesMemoryRepository) DeleteArticle(id int) error {
-	path := filepath.Join(r.DbPath, strconv.Itoa(id)+".json")
+func (r *ArticlesPostgresRepository) DeleteArticle(id int) error {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
 
-	err := os.Remove(path)
-
+	result, err := r.db.Exec(
+		ctx,
+		`
+		DELETE FROM articles
+		WHERE id = $1
+		`,
+		id,
+	)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return ErrArticleNotFound
-		}
 		return err
+	}
+
+	if result.RowsAffected() == 0 {
+		return ErrArticleNotFound
 	}
 
 	return nil
 }
 
-func (r *ArticlesMemoryRepository) UpdateArticle(id int, title string, body string) error {
-	path := filepath.Join(r.DbPath, strconv.Itoa(id)+".json")
+func (r *ArticlesPostgresRepository) UpdateArticle(id int, title string, body string) error {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
 
-	if _, err := os.Stat(path); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return ErrArticleNotFound
-		}
-		return err
-	}
-
-	now := time.Now()
-
-	article := Article{
-		ID:        id,
-		CreatedAt: now,
-		Title:     title,
-		Text:      body,
-	}
-
-	jsonArticle, err := json.Marshal(article)
-
+	result, err := r.db.Exec(
+		ctx,
+		`
+		UPDATE articles
+		SET title = $1,
+		    text = $2
+		WHERE id = $3
+		`,
+		title,
+		body,
+		id,
+	)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(path, jsonArticle, 0644)
-
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return ErrArticleNotFound
-		}
-		return err
+	if result.RowsAffected() == 0 {
+		return ErrArticleNotFound
 	}
 
 	return nil
-}
-
-func (r *ArticlesMemoryRepository) generateID() (int, error) {
-	path := filepath.Join(r.DbPath, "counter.txt")
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return 0, err
-	}
-
-	myID, err := strconv.Atoi(string(content))
-	if err != nil {
-		return 0, err
-	}
-
-	myID++
-
-	err = os.WriteFile(path, []byte(strconv.Itoa(myID)), 0644)
-	if err != nil {
-		return 0, err
-	}
-
-	return myID, nil
 }
