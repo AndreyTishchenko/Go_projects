@@ -3,24 +3,29 @@ package test
 import (
 	"context"
 	"errors"
-	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
+	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func newTestRepository(t *testing.T) *repository.ArticlesPostgresRepository {
 	t.Helper()
 
-	databaseURL := os.Getenv("TEST_DATABASE_URL")
-	if databaseURL == "" {
+	var cfg struct {
+		DatabaseURL string `env:"TEST_DATABASE_URL"`
+	}
+	if err := cleanenv.ReadEnv(&cfg); err != nil {
+		t.Fatalf("load test configuration: %v", err)
+	}
+	if cfg.DatabaseURL == "" {
 		t.Skip("TEST_DATABASE_URL is not set; run the database tests with `docker compose run --rm test`")
 	}
 
-	pool, err := pgxpool.New(context.Background(), databaseURL)
+	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("create test database pool: %v", err)
 	}

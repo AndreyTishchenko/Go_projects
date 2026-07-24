@@ -5,30 +5,25 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/config"
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/server"
 )
 
 func main() {
-	portNumber := ":" + os.Getenv("PORT")
-	if portNumber == ":" {
-		portNumber = ":8080"
-	}
-
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is not set")
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("load configuration: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	db, err := pgxpool.New(ctx, databaseURL)
+	db, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("create database pool: %v", err)
 	}
@@ -47,10 +42,12 @@ func main() {
 	s := server.NewServerConfig(
 		articlesRepository,
 		tmpl,
+		cfg.AdminLogin,
+		cfg.AdminPassword,
 	)
 
 	httpServer := http.Server{
-		Addr:              portNumber,
+		Addr:              ":" + cfg.Port,
 		Handler:           s.Routes(),
 		ReadTimeout:       5 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -58,6 +55,6 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("application running on %s", portNumber)
+	log.Printf("application running on %s", httpServer.Addr)
 	log.Fatal(httpServer.ListenAndServe())
 }
