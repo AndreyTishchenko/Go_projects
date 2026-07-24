@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/app"
 )
 
 func TestAdminRoutesRequireAuthAndDeleteArticle(t *testing.T) {
-	repo := newFakeArticlesRepository(repository.Article{
+	repo := newFakeArticlesRepository(app.Article{
 		ID:        9,
 		CreatedAt: time.Date(2026, 7, 2, 18, 25, 12, 0, time.UTC),
 		Title:     "Delete me",
@@ -35,7 +35,7 @@ func TestAdminRoutesRequireAuthAndDeleteArticle(t *testing.T) {
 		t.Fatalf("POST /admin/delete/9 Location = %q, want %q", location, "/admin")
 	}
 
-	if _, err := repo.GetArticle(9); !errors.Is(err, repository.ErrArticleNotFound) {
-		t.Fatalf("GetArticle(9) after delete error = %v, want %v", err, repository.ErrArticleNotFound)
+	if _, err := repo.Get(t.Context(), 9); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("Get(9) after delete error = %v, want %v", err, app.ErrNotFound)
 	}
 }

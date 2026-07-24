@@ -1,14 +1,13 @@
-package server
+package http
 
 import (
 	"bytes"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
-	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/app"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -19,7 +18,7 @@ type ReadibleArticle struct {
 	Text      string `json:"text"`
 }
 
-func ToReadableArticles(src []repository.Article) []ReadibleArticle {
+func ToReadableArticles(src []app.Article) []ReadibleArticle {
 	out := make([]ReadibleArticle, 0, len(src))
 
 	for _, a := range src {
@@ -34,10 +33,10 @@ func ToReadableArticles(src []repository.Article) []ReadibleArticle {
 	return out
 }
 
-func (s Server) RenderTemplate(w http.ResponseWriter, status int, name string, data any) {
+func (s *Handler) RenderTemplate(w http.ResponseWriter, status int, name string, data any) {
 	var buf bytes.Buffer
 
-	err := s.Templates.ExecuteTemplate(&buf, name, data)
+	err := s.templates.ExecuteTemplate(&buf, name, data)
 	if err != nil {
 		http.Error(w, "template rendering failed", http.StatusInternalServerError)
 		return
@@ -52,12 +51,12 @@ type homePageData struct {
 	IsAdmin  bool
 }
 
-func (s Server) HomePage(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) HomePage(w http.ResponseWriter, r *http.Request) {
 	var isAdmin bool
-	articles, err := s.ArticlesRepository.GetArticles()
+	articles, err := s.articles.List(r.Context())
 
 	if err != nil {
-		log.Printf("failed to load articles: %v", err)
+		s.logger.Error("failed to load articles", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -66,11 +65,11 @@ func (s Server) HomePage(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err != http.ErrNoCookie {
-			log.Println("cookie parse error:", err)
+			s.logger.Error("cookie parse error", "error", err)
 		}
 		isAdmin = false
 	} else {
-		isAdmin = s.AuthCheck(cookie.Value)
+		isAdmin = s.sessions.IsAdmin(cookie.Value)
 	}
 
 	data := homePageData{ToReadableArticles(articles), isAdmin}
@@ -82,7 +81,7 @@ type articlePageData struct {
 	Article ReadibleArticle
 }
 
-func (s Server) ArticlePage(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) ArticlePage(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 
@@ -91,7 +90,7 @@ func (s Server) ArticlePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	article, err := s.ArticlesRepository.GetArticle(id)
+	article, err := s.articles.Get(r.Context(), id)
 
 	if err != nil {
 		s.RenderTemplate(w, http.StatusNotFound, "404.html", nil)
@@ -116,7 +115,7 @@ type LoginPageData struct {
 	BadCredentialsErr bool
 }
 
-func (s Server) LoginPage(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
 	errorMsg := getFlash(w, r)
 	nameError := false
 	passwordError := false
@@ -146,12 +145,12 @@ type AdminPageData struct {
 	IsAdmin  bool
 }
 
-func (s Server) AdminPage(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) AdminPage(w http.ResponseWriter, r *http.Request) {
 	var isAdmin bool
-	articles, err := s.ArticlesRepository.GetArticles()
+	articles, err := s.articles.List(r.Context())
 
 	if err != nil {
-		log.Printf("failed to load articles: %v", err)
+		s.logger.Error("failed to load articles", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -160,11 +159,11 @@ func (s Server) AdminPage(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err != http.ErrNoCookie {
-			log.Println("cookie parse error:", err)
+			s.logger.Error("cookie parse error", "error", err)
 		}
 		isAdmin = false
 	} else {
-		isAdmin = s.AuthCheck(cookie.Value)
+		isAdmin = s.sessions.IsAdmin(cookie.Value)
 	}
 
 	if isAdmin != true {
@@ -185,7 +184,7 @@ type AddArticleData struct {
 	BodyText  string
 }
 
-func (s Server) AddArticle(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) AddArticle(w http.ResponseWriter, r *http.Request) {
 	var isAdmin bool
 	title_text := ""
 	body_text := ""
@@ -194,11 +193,11 @@ func (s Server) AddArticle(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err != http.ErrNoCookie {
-			log.Println("cookie parse error:", err)
+			s.logger.Error("cookie parse error", "error", err)
 		}
 		isAdmin = false
 	} else {
-		isAdmin = s.AuthCheck(cookie.Value)
+		isAdmin = s.sessions.IsAdmin(cookie.Value)
 	}
 
 	if isAdmin != true {
@@ -271,7 +270,7 @@ type ChangeArticleData struct {
 	ID        int
 }
 
-func (s Server) ChangeArticle(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) ChangeArticle(w http.ResponseWriter, r *http.Request) {
 	var isAdmin bool
 	title_text := ""
 	body_text := ""
@@ -280,11 +279,11 @@ func (s Server) ChangeArticle(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err != http.ErrNoCookie {
-			log.Println("cookie parse error:", err)
+			s.logger.Error("cookie parse error", "error", err)
 		}
 		isAdmin = false
 	} else {
-		isAdmin = s.AuthCheck(cookie.Value)
+		isAdmin = s.sessions.IsAdmin(cookie.Value)
 	}
 
 	if isAdmin != true {
@@ -298,7 +297,7 @@ func (s Server) ChangeArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	article, err := s.ArticlesRepository.GetArticle(id)
+	article, err := s.articles.Get(r.Context(), id)
 	if err != nil {
 		http.Error(w, "article not found", http.StatusNotFound)
 		return

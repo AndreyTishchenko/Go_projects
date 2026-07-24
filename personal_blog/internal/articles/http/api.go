@@ -1,25 +1,24 @@
-package server
+package http
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
-	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/app"
 	"github.com/go-chi/chi/v5"
 )
 
-func authCheck(w http.ResponseWriter, r *http.Request, s Server, isBrowser bool) error {
+func authCheck(w http.ResponseWriter, r *http.Request, s *Handler, isBrowser bool) error {
 	cookie, err := r.Cookie("auth")
 
 	if err != nil {
 		if err != http.ErrNoCookie {
-			log.Println("cookie parse error:", err)
+			s.logger.Error("cookie parse error", "error", err)
 			if isBrowser {
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return err
@@ -31,7 +30,7 @@ func authCheck(w http.ResponseWriter, r *http.Request, s Server, isBrowser bool)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return err
 	} else {
-		if s.AuthCheck(cookie.Value) {
+		if s.sessions.IsAdmin(cookie.Value) {
 			return nil
 		} else {
 			if isBrowser {
@@ -45,11 +44,11 @@ func authCheck(w http.ResponseWriter, r *http.Request, s Server, isBrowser bool)
 	}
 }
 
-func (s Server) GetArticles(w http.ResponseWriter, r *http.Request) {
-	articles, err := s.ArticlesRepository.GetArticles()
+func (s *Handler) GetArticles(w http.ResponseWriter, r *http.Request) {
+	articles, err := s.articles.List(r.Context())
 
 	if err != nil {
-		log.Println("Failed to read payload:", err.Error())
+		s.logger.Error("failed to get articles", "error", err)
 		http.Error(w, "Failed to read payload", http.StatusInternalServerError)
 		return
 	}
@@ -57,7 +56,7 @@ func (s Server) GetArticles(w http.ResponseWriter, r *http.Request) {
 	jsonArticles, err := json.Marshal(articles)
 
 	if err != nil {
-		log.Println("Failed to get articles:", err.Error())
+		s.logger.Error("failed to encode articles", "error", err)
 		http.Error(w, "Failed to get articles", http.StatusInternalServerError)
 		return
 	}
@@ -65,7 +64,7 @@ func (s Server) GetArticles(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonArticles)
 }
 
-func (s Server) GetArticle(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) GetArticle(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 
@@ -74,10 +73,10 @@ func (s Server) GetArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	article, err := s.ArticlesRepository.GetArticle(id)
+	article, err := s.articles.Get(r.Context(), id)
 
 	if err != nil {
-		if errors.Is(err, repository.ErrArticleNotFound) {
+		if errors.Is(err, app.ErrNotFound) {
 			println("Article is not found:", err)
 			http.Error(w, "Article is not found", http.StatusNotFound)
 			return
@@ -99,14 +98,14 @@ func (s Server) GetArticle(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonArticle)
 }
 
-func parseArticleData(w http.ResponseWriter, r *http.Request) (ArticlePayload, error, bool) {
-	var article ArticlePayload
+func parseArticleData(w http.ResponseWriter, r *http.Request) (articlePayload, error, bool) {
+	var article articlePayload
 	isBrowser := !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
 
 	if isBrowser {
 		if err := r.ParseForm(); err != nil {
 			http.Redirect(w, r, "/admin/new", http.StatusSeeOther)
-			return ArticlePayload{}, err, true
+			return articlePayload{}, err, true
 		}
 
 		article.Body = r.FormValue("body")
@@ -115,14 +114,14 @@ func parseArticleData(w http.ResponseWriter, r *http.Request) (ArticlePayload, e
 	} else {
 		if r.Method != http.MethodPost {
 			http.Error(w, "invalid method", http.StatusMethodNotAllowed)
-			return ArticlePayload{}, errors.New("invalid method"), false
+			return articlePayload{}, errors.New("invalid method"), false
 		}
 
 		err := json.NewDecoder(r.Body).Decode(&article)
 
 		if err != nil {
 			http.Error(w, "invalid format", http.StatusBadRequest)
-			return ArticlePayload{}, err, false
+			return articlePayload{}, err, false
 		}
 
 		return article, nil, false
@@ -194,7 +193,7 @@ func inputErrorsParsing(w http.ResponseWriter, r *http.Request, body string, tit
 	return nil
 }
 
-func (s Server) PostArticle(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) PostArticle(w http.ResponseWriter, r *http.Request) {
 	articleData, err, isBrowser := parseArticleData(w, r)
 
 	if err != nil {
@@ -215,7 +214,7 @@ func (s Server) PostArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := s.ArticlesRepository.AddArticle(articleData.Title, articleData.Body)
+	id, err := s.articles.Create(r.Context(), articleData.Title, articleData.Body)
 
 	if err != nil {
 		println("failed to create article", err.Error())
@@ -242,7 +241,7 @@ func (s Server) PostArticle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s Server) UpdateArticle(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	articleData, err, isBrowser := parseArticleData(w, r)
 
 	if err != nil {
@@ -277,7 +276,7 @@ func (s Server) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.ArticlesRepository.UpdateArticle(id, articleData.Title, articleData.Body)
+	err = s.articles.Update(r.Context(), id, articleData.Title, articleData.Body)
 
 	if isBrowser {
 		if err != nil {
@@ -307,7 +306,7 @@ func (s Server) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s Server) DeleteArticle(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) DeleteArticle(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 
@@ -322,10 +321,10 @@ func (s Server) DeleteArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.ArticlesRepository.DeleteArticle(id)
+	err = s.articles.Delete(r.Context(), id)
 
 	if err != nil {
-		if errors.Is(err, repository.ErrArticleNotFound) {
+		if errors.Is(err, app.ErrNotFound) {
 			println("Article is not found:", err)
 			http.Error(w, "Article is not found", http.StatusNotFound)
 			return

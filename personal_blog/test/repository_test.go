@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
+	articlepostgres "github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/adapters/postgres"
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/app"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func newTestRepository(t *testing.T) *repository.ArticlesPostgresRepository {
+func newTestRepository(t *testing.T) *articlepostgres.Repository {
 	t.Helper()
 
 	var cfg struct {
@@ -39,18 +40,18 @@ func newTestRepository(t *testing.T) *repository.ArticlesPostgresRepository {
 		t.Fatalf("reset articles table: %v", err)
 	}
 
-	return repository.NewArticlesPostgresRepository(pool)
+	return articlepostgres.NewRepository(pool)
 }
 
-func addArticle(t *testing.T, repo *repository.ArticlesPostgresRepository, title, body string) repository.Article {
+func addArticle(t *testing.T, repo *articlepostgres.Repository, title, body string) app.Article {
 	t.Helper()
 
-	id, err := repo.AddArticle(title, body)
+	id, err := repo.Create(t.Context(), title, body)
 	if err != nil {
 		t.Fatalf("AddArticle(%q, %q): %v", title, body, err)
 	}
 
-	article, err := repo.GetArticle(id)
+	article, err := repo.Get(t.Context(), id)
 	if err != nil {
 		t.Fatalf("GetArticle(%d): %v", id, err)
 	}
@@ -64,12 +65,12 @@ func TestPostgresRepositoryGetArticles(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	second := addArticle(t, repo, "Second", "Second body")
 
-	got, err := repo.GetArticles()
+	got, err := repo.List(t.Context())
 	if err != nil {
 		t.Fatalf("GetArticles() error = %v", err)
 	}
 
-	want := []repository.Article{second, first}
+	want := []app.Article{second, first}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("GetArticles() = %v, want newest-first %v", got, want)
 	}
@@ -79,7 +80,7 @@ func TestPostgresRepositoryGetArticle(t *testing.T) {
 	repo := newTestRepository(t)
 	want := addArticle(t, repo, "Hello World", "Hello!")
 
-	got, err := repo.GetArticle(want.ID)
+	got, err := repo.Get(t.Context(), want.ID)
 	if err != nil {
 		t.Fatalf("GetArticle(%d) error = %v", want.ID, err)
 	}
@@ -91,16 +92,16 @@ func TestPostgresRepositoryGetArticle(t *testing.T) {
 func TestPostgresRepositoryGetArticleReturnsNotFound(t *testing.T) {
 	repo := newTestRepository(t)
 
-	_, err := repo.GetArticle(404)
-	if !errors.Is(err, repository.ErrArticleNotFound) {
-		t.Fatalf("GetArticle(404) error = %v, want %v", err, repository.ErrArticleNotFound)
+	_, err := repo.Get(t.Context(), 404)
+	if !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("Get(404) error = %v, want %v", err, app.ErrNotFound)
 	}
 }
 
 func TestPostgresRepositoryAddArticle(t *testing.T) {
 	repo := newTestRepository(t)
 
-	id, err := repo.AddArticle("New title", "New body")
+	id, err := repo.Create(t.Context(), "New title", "New body")
 	if err != nil {
 		t.Fatalf("AddArticle() error = %v", err)
 	}
@@ -108,7 +109,7 @@ func TestPostgresRepositoryAddArticle(t *testing.T) {
 		t.Fatalf("AddArticle() id = %d, want 1 after identity reset", id)
 	}
 
-	got, err := repo.GetArticle(id)
+	got, err := repo.Get(t.Context(), id)
 	if err != nil {
 		t.Fatalf("GetArticle(%d) after AddArticle error = %v", id, err)
 	}
@@ -121,20 +122,20 @@ func TestPostgresRepositoryDeleteArticle(t *testing.T) {
 	repo := newTestRepository(t)
 	article := addArticle(t, repo, "Delete me", "Body")
 
-	if err := repo.DeleteArticle(article.ID); err != nil {
+	if err := repo.Delete(t.Context(), article.ID); err != nil {
 		t.Fatalf("DeleteArticle(%d) error = %v", article.ID, err)
 	}
-	if _, err := repo.GetArticle(article.ID); !errors.Is(err, repository.ErrArticleNotFound) {
-		t.Fatalf("GetArticle(%d) after delete error = %v, want %v", article.ID, err, repository.ErrArticleNotFound)
+	if _, err := repo.Get(t.Context(), article.ID); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("Get(%d) after delete error = %v, want %v", article.ID, err, app.ErrNotFound)
 	}
 }
 
 func TestPostgresRepositoryDeleteArticleReturnsNotFound(t *testing.T) {
 	repo := newTestRepository(t)
 
-	err := repo.DeleteArticle(404)
-	if !errors.Is(err, repository.ErrArticleNotFound) {
-		t.Fatalf("DeleteArticle(404) error = %v, want %v", err, repository.ErrArticleNotFound)
+	err := repo.Delete(t.Context(), 404)
+	if !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("Delete(404) error = %v, want %v", err, app.ErrNotFound)
 	}
 }
 
@@ -142,11 +143,11 @@ func TestPostgresRepositoryUpdateArticle(t *testing.T) {
 	repo := newTestRepository(t)
 	article := addArticle(t, repo, "Old title", "Old body")
 
-	if err := repo.UpdateArticle(article.ID, "Updated title", "Updated body"); err != nil {
+	if err := repo.Update(t.Context(), article.ID, "Updated title", "Updated body"); err != nil {
 		t.Fatalf("UpdateArticle(%d) error = %v", article.ID, err)
 	}
 
-	got, err := repo.GetArticle(article.ID)
+	got, err := repo.Get(t.Context(), article.ID)
 	if err != nil {
 		t.Fatalf("GetArticle(%d) after UpdateArticle error = %v", article.ID, err)
 	}
@@ -161,8 +162,8 @@ func TestPostgresRepositoryUpdateArticle(t *testing.T) {
 func TestPostgresRepositoryUpdateArticleReturnsNotFound(t *testing.T) {
 	repo := newTestRepository(t)
 
-	err := repo.UpdateArticle(404, "Title", "Body")
-	if !errors.Is(err, repository.ErrArticleNotFound) {
-		t.Fatalf("UpdateArticle(404) error = %v, want %v", err, repository.ErrArticleNotFound)
+	err := repo.Update(t.Context(), 404, "Title", "Body")
+	if !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("Update(404) error = %v, want %v", err, app.ErrNotFound)
 	}
 }

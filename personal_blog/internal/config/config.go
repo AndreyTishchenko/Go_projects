@@ -14,6 +14,5 @@ func Load() (Config, error) {
 	if err := cleanenv.ReadEnv(&cfg); err != nil {
 		return Config{}, err
 	}
-
 	return cfg, nil
 }
