@@ -3,8 +3,9 @@ services:
     build: .
     environment:
       PORT: ${PORT:-3030}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
       ADMIN_LOGIN: ${ADMIN_LOGIN:-admin123}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?set ADMIN_PASSWORD_HASH to a bcrypt hash}
+      SESSION_TTL: ${SESSION_TTL:-24h}
       DATABASE_URL: postgres://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD:-blog}@db:5432/${POSTGRES_DB:-blog}?sslmode=disable
     ports:
       - "${PORT:-3030}:${PORT:-3030}"

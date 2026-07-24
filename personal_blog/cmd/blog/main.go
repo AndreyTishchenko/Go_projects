@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"html/template"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	articlepostgres "github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/adapters/postgres"
@@ -17,24 +21,34 @@ import (
 )
 
 func main() {
+	logger := platformlog.New()
+	if err := run(logger); err != nil {
+		logger.Error("application stopped with an error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run(logger *slog.Logger) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("load configuration: %v", err)
+		return fmt.Errorf("load configuration: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	connectCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	db, err := platformpostgres.Open(ctx, cfg.DatabaseURL)
+	db, err := platformpostgres.Open(connectCtx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer db.Close()
 
-	logger := platformlog.New()
 	repository := articlepostgres.NewRepository(db)
 	articles := app.NewService(repository)
-	sessions := session.NewManager(cfg.AdminLogin, cfg.AdminPassword)
+	sessions := session.NewManager(cfg.AdminLogin, cfg.AdminPasswordHash, cfg.SessionTTL)
 	templates := template.Must(template.ParseGlob("templates/*.html"))
 	handler := articlehttp.NewHandler(articles, templates, sessions, logger)
 
@@ -47,6 +61,27 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	logger.Info("application running", "address", server.Addr)
-	log.Fatal(server.ListenAndServe())
+	serverErrors := make(chan error, 1)
+	go func() {
+		logger.Info("application starting", "address", server.Addr)
+		serverErrors <- server.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErrors:
+		if err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("serve HTTP: %w", err)
+		}
+	case <-ctx.Done():
+		logger.Info("shutdown requested")
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		_ = server.Close()
+		return fmt.Errorf("graceful shutdown: %w", err)
+	}
+	logger.Info("application stopped")
+	return nil
 }

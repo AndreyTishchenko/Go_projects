@@ -14,6 +14,7 @@ import (
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/app"
 	articlehttp "github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/http"
 	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/platform/session"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type fakeArticlesRepository struct {
@@ -114,10 +115,24 @@ func (r *fakeArticlesRepository) Update(_ context.Context, id int, title string,
 func newTestApplication(t *testing.T, repo app.Repository) (*articlehttp.Handler, http.Handler) {
 	t.Helper()
 
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return newTestApplicationWithLogger(t, repo, logger)
+}
+
+func newTestApplicationWithLogger(
+	t *testing.T,
+	repo app.Repository,
+	logger *slog.Logger,
+) (*articlehttp.Handler, http.Handler) {
+	t.Helper()
+
 	tmpl := template.Must(template.ParseGlob("../templates/*.html"))
 	service := app.NewService(repo)
-	sessions := session.NewManager("admin", "admin213")
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte("admin213"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("hash test password: %v", err)
+	}
+	sessions := session.NewManager("admin", string(passwordHash), time.Hour)
 	s := articlehttp.NewHandler(service, tmpl, sessions, logger)
 
 	return s, s.Routes()
