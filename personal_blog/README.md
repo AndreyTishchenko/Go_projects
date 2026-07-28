@@ -2,65 +2,93 @@
 
 A Go web application backed by PostgreSQL.
 
-## Environment variables
+## Prerequisites
 
-The application reads configuration from the process environment. Docker Compose
-also reads the variables in the project-level `.env` file when interpolating
-`docker-compose.yml`.
+- Go 1.25 or newer
+- Docker with Docker Compose
 
-| Variable | Required | Default | Description |
-| --- | --- | --- | --- |
-| `PORT` | No | `8080` when running the application directly; `3030` with Docker Compose | HTTP port on which the application listens. Docker Compose publishes the same port on the host. |
-| `DATABASE_URL` | Yes | None | PostgreSQL connection string used by the application. For a direct run, set the complete URL, for example `postgres://blog:blog@localhost:5432/blog?sslmode=disable`. Docker Compose constructs this value from the `POSTGRES_*` variables. |
-| `ADMIN_LOGIN` | Yes | `admin123` with Docker Compose | Login name for the blog administrator. There is no default when running the application directly. |
-| `ADMIN_PASSWORD_HASH` | Yes | None | Bcrypt hash of the blog administrator's password. The application never stores or compares the plain password. In `.env`, single-quote the hash so Docker Compose treats its `$` characters literally. |
-| `POSTGRES_DB` | Docker Compose only | `blog` | Name of the PostgreSQL database created by the `db` service and used to construct `DATABASE_URL`. |
-| `POSTGRES_USER` | Docker Compose only | `blog` | PostgreSQL user created by the `db` service and used to construct `DATABASE_URL`. |
-| `POSTGRES_PASSWORD` | Docker Compose only | `blog` | Password for `POSTGRES_USER`, also used to construct `DATABASE_URL`. Change the default outside local development. |
-| `SESSION_TTL` | No | `24h` | Lifetime of an authenticated session, expressed as a Go duration such as `30m`, `8h`, or `24h`. Must be greater than zero. |
-| `TEST_DATABASE_URL` | Database tests only | None | PostgreSQL connection string used by repository integration tests. Those tests are skipped when it is unset. The Compose `test` service supplies it automatically. |
+## Quick start with Docker Compose
 
-Generate a bcrypt password hash (the command prompts for the password):
+Generate a bcrypt hash for the admin password:
 
 ```sh
-htpasswd -nBC 12 admin
+docker run --rm httpd:2.4-alpine htpasswd -nbB admin 'change-me' | cut -d: -f2
 ```
 
-Copy only the hash portion of the output into the configuration. Example
-configuration for running the application directly:
+Create `.env` in the project root and paste the generated hash. Keep the single
+quotes: they prevent Docker Compose from interpreting the hash's `$` characters.
 
 ```dotenv
-PORT=8080
-DATABASE_URL=postgres://blog:blog@localhost:5432/blog?sslmode=disable
-ADMIN_LOGIN=admin
-ADMIN_PASSWORD_HASH='$2y$12$replace.with.a.real.bcrypt.hash'
-SESSION_TTL=24h
+ADMIN_PASSWORD_HASH='$2y$05$replace.with.the.generated.hash'
 ```
 
-Start the application and its database with the Compose defaults:
+Start PostgreSQL, run all migrations, build the application, and start it:
 
 ```sh
 docker compose up --build
 ```
 
-Override any Compose default by exporting the variable or placing it in `.env`
-before running the command. Run the full test suite, including PostgreSQL
-integration tests, with:
+After the app reports that it has started, open <http://localhost:3030>. Sign in
+at <http://localhost:3030/login> with username `admin123` and the password used
+to generate the hash. Stop the services with `docker compose down`.
+
+## Run locally
+
+Start only PostgreSQL:
+
+```sh
+docker compose up -d db
+```
+
+Set the required application configuration:
+
+```sh
+export DATABASE_URL='postgres://blog:blog@localhost:5432/blog?sslmode=disable'
+export ADMIN_LOGIN='admin'
+export ADMIN_PASSWORD_HASH='$2y$05$replace.with.a.real.bcrypt.hash'
+```
+
+Run the migrations and start the app:
+
+```sh
+make migrate-up
+make run
+```
+
+The local app is available at <http://localhost:8080>. Migration commands use
+Goose at the version set by `GOOSE_VERSION` (default `v3.26.0`) and may download
+it on first use. `make migrate-down` rolls back the most recent migration.
+
+## Environment variables
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | Yes | None | PostgreSQL connection URL. Compose constructs it from the `POSTGRES_*` variables. |
+| `ADMIN_LOGIN` | Yes | `admin123` in Compose | Administrator login. No default for a direct run. |
+| `ADMIN_PASSWORD_HASH` | Yes | None | Bcrypt hash of the administrator password. |
+| `PORT` | No | `8080` locally, `3030` in Compose | HTTP listen port. |
+| `SESSION_TTL` | No | `24h` | Session lifetime as a positive Go duration, such as `30m` or `24h`. |
+| `POSTGRES_DB` | Compose only | `blog` | Database created by the Compose `db` service. |
+| `POSTGRES_USER` | Compose only | `blog` | Database user created by Compose. |
+| `POSTGRES_PASSWORD` | Compose only | `blog` | Database password used by Compose. |
+| `TEST_DATABASE_URL` | Integration tests only | None | Test PostgreSQL URL. Repository integration tests skip when unset. |
+
+## Tests and checks
+
+Run the full test suite, including PostgreSQL integration tests:
 
 ```sh
 docker compose run --rm test
 ```
 
-## Development commands
+For the normal local checks (database tests skip if `TEST_DATABASE_URL` is not
+set):
 
 ```sh
-make run
-make test
-make vet
-make migrate-up
-make migrate-down
+go test ./...
+go vet ./...
+go mod tidy
+git diff --exit-code -- go.mod go.sum
 ```
 
-The migration commands require `DATABASE_URL`. They run Goose at the version set
-by `GOOSE_VERSION` (default `v3.26.0`) and may download it through the Go toolchain
-on first use.
+GitHub Actions runs these checks on every push and pull request.
