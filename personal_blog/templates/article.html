@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/styles/style.css">
+    <title>{{ .Article.Title }}</title>
+</head>
+<body>
+
+<div class="container">
+
+    <a href="/" class="back">← back</a>
+
+    <div class="article">
+        <div class="article-header">
+            <h1>{{ .Article.Title }}</h1>
+            <p class="date">{{ .Article.CreatedAt }}</p>
+        </div>
+
+        <div class="article-content">
+            <p>{{.Article.Text}}</p>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/styles/style.css">
+    <title>Create Article</title>
+</head>
+<body>
+
+<div class="container">
+    <a href="/admin" class="back">← back</a>
+
+    <form class="article article-form" method="POST" action="/admin/new">
+        <div class="article-header">
+            <h1>New Article</h1>
+        </div>
+
+        {{ if .TitleErr }}
+        <input
+            class="article-input input-error"
+            type="text"
+            name="title"
+            value="{{ .TitleText }}"
+            placeholder="Article Title">
+        <div class="field-error">Title must not be empty.</div>
+        {{ else }}
+        <input
+            class="article-input"
+            type="text"
+            name="title"
+            value="{{ .TitleText }}"
+            placeholder="Article Title">
+        {{ end }}
+
+        <input
+            class="article-input"
+            type="text"
+            name="date"
+            value="{{ .Date }}"
+            placeholder="Publishing Date">
+
+        {{ if .BodyErr }}
+        <textarea
+            class="article-textarea input-error"
+            name="body"
+            placeholder="">{{ .BodyText }}</textarea>
+        <div class="field-error">Article content must not be empty.</div>
+        {{ else }}
+        <textarea
+            class="article-textarea"
+            name="body"
+            placeholder="">{{ .BodyText }}</textarea>
+        {{ end }}
+
+        <button class="publish-btn" type="submit">
+            Publish
+        </button>
+    </form>
+</div>
+
+</body>
+</html>

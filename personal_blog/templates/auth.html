@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorization</title>
+    <link rel="stylesheet" href="/static/styles/style.css">
+</head>
+<body>
+
+<div class="container center">
+    <div>
+        <a href="/" class="back">← back</a>
+
+        <form class="auth-card" method="POST" action="/auth">
+            <h1>Sign in</h1>
+
+            {{ if .BadCredentialsErr }}
+            <div class="form-error">Bad login or password</div>
+            {{ end }}
+
+            <label>Login</label>
+            <input
+                type="text"
+                name="name"
+                class="{{ if or .NameErr .BadCredentialsErr }}input-error{{ end }}"
+            >
+            {{ if .NameErr }}
+            <div class="field-error">Login is required</div>
+            {{ end }}
+
+            <label>Password</label>
+            <input
+                type="password"
+                name="password"
+                class="{{ if or .PasswordErr .BadCredentialsErr }}input-error{{ end }}"
+            >
+            {{ if .PasswordErr }}
+            <div class="field-error">Password is required</div>
+            {{ end }}
+
+            <button type="submit">Enter</button>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>

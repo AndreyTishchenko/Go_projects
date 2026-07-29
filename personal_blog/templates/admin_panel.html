@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="/static/styles/style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <a href="/" class="back">← back to home</a>
+
+    <div class="admin-header">
+        <h1>Admin Panel</h1>
+
+        <a href="/admin/new" class="new-btn">
+            + New article
+        </a>
+    </div>
+
+    <div class="admin-list">
+
+        {{ range .Articles }}
+
+        <div class="admin-post">
+
+            <a href="/article/{{ .ID }}" class="admin-title">
+                {{ .Title }}
+            </a>
+
+            <div class="admin-actions">
+
+                <a href="/admin/change/{{ .ID }}" class="edit-btn" title="Edit">
+                    ✎
+                </a>
+
+                <form action="/admin/delete/{{ .ID }}" method="POST">
+                    <button type="submit" class="delete-btn" title="Delete">
+                        ✕
+                    </button>
+                </form>
+
+            </div>
+
+        </div>
+
+        {{ else }}
+
+        <p>No articles yet.</p>
+
+        {{ end }}
+
+    </div>
+
+</div>
+
+</body>
+</html>
