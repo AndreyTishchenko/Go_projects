@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -27,6 +28,13 @@ func (s *Handler) AdminOnly(next http.Handler) http.Handler {
 
 func (s *Handler) Routes() http.Handler {
 	r := chi.NewRouter()
+	r.Use(s.RequestLogger)
+
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK\n"))
+	})
 
 	// static files
 	fs := http.FileServer(http.Dir("./static"))
@@ -49,6 +57,7 @@ func (s *Handler) Routes() http.Handler {
 	r.Get("/article/{id}", s.ArticlePage)
 	r.Get("/login", s.LoginPage)
 	r.Post("/auth", s.AuthHandler)
+	r.Post("/logout", s.LogoutHandler)
 
 	r.Route("/admin", func(api chi.Router) {
 		api.Use(s.AdminOnly)
@@ -62,4 +71,48 @@ func (s *Handler) Routes() http.Handler {
 	})
 
 	return r
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusRecorder) WriteHeader(status int) {
+	if w.status != 0 {
+		return
+	}
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *statusRecorder) Write(p []byte) (int, error) {
+	if w.status == 0 {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func (w *statusRecorder) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
+func (s *Handler) RequestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		recorder := &statusRecorder{ResponseWriter: w}
+
+		next.ServeHTTP(recorder, r)
+
+		status := recorder.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		s.logger.Info("request completed",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", status,
+			"duration", time.Since(start),
+		)
+	})
 }

@@ -15,9 +15,14 @@
     <div class="admin-header">
         <h1>Admin Panel</h1>
 
-        <a href="/admin/new" class="new-btn">
-            + New article
-        </a>
+        <div class="admin-actions">
+            <a href="/admin/new" class="new-btn">
+                + New article
+            </a>
+            <form action="/logout" method="POST">
+                <button type="submit">Log out</button>
+            </form>
+        </div>
     </div>
 
     <div class="admin-list">

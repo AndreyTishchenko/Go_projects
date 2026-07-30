@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type authPayload struct {
@@ -32,26 +33,26 @@ func decodeAuth(r *http.Request) (authPayload, error) {
 	return p, nil
 }
 
-func (s *Handler) authenticate(r *http.Request) (string, error) {
+func (s *Handler) authenticate(r *http.Request) (string, time.Time, error) {
 	data, err := decodeAuth(r)
 	if err != nil {
-		return "", err
+		return "", time.Time{}, err
 	}
 
 	if data.Name == "" && data.Password == "" {
-		return "", ErrBothFieldsEmpty
+		return "", time.Time{}, ErrBothFieldsEmpty
 	} else if data.Name == "" {
-		return "", ErrEmptyNameField
+		return "", time.Time{}, ErrEmptyNameField
 	} else if data.Password == "" {
-		return "", ErrEmptyPasswordField
+		return "", time.Time{}, ErrEmptyPasswordField
 	}
 
-	token, ok := s.sessions.Authenticate(data.Name, data.Password)
+	token, expiresAt, ok := s.sessions.Authenticate(data.Name, data.Password)
 	if !ok {
-		return "", ErrBadCredentials
+		return "", time.Time{}, ErrBadCredentials
 	}
 
-	return token, nil
+	return token, expiresAt, nil
 }
 
 func (s *Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +61,7 @@ func (s *Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := s.authenticate(r)
+	token, expiresAt, err := s.authenticate(r)
 	isBrowser := !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
 
 	if err != nil {
@@ -91,6 +92,7 @@ func (s *Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
+		Expires:  expiresAt,
 	})
 
 	if isBrowser {
@@ -99,4 +101,22 @@ func (s *Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie("auth"); err == nil {
+		s.sessions.Logout(cookie.Value)
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+		Expires:  time.Unix(1, 0),
+	})
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
