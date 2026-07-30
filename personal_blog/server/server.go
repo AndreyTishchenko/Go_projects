@@ -27,13 +27,17 @@ type Server struct {
 	ArticlesRepository repository.ArticlesRepository
 	Templates          *template.Template
 	adminkey           string
+	adminLogin         string
+	adminPassword      string
 }
 
-func NewServerConfig(r repository.ArticlesRepository, t *template.Template) Server {
+func NewServerConfig(r repository.ArticlesRepository, t *template.Template, adminLogin, adminPassword string) Server {
 	return Server{
 		ArticlesRepository: r,
 		Templates:          t,
 		adminkey:           newSessionToken(),
+		adminLogin:         adminLogin,
+		adminPassword:      adminPassword,
 	}
 }
 
