@@ -1,4 +1,4 @@
-package server
+package http
 
 import (
 	"net/http"
@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func (s Server) AdminOnly(next http.Handler) http.Handler {
+func (s *Handler) AdminOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("auth")
 		if err != nil {
@@ -14,7 +14,7 @@ func (s Server) AdminOnly(next http.Handler) http.Handler {
 			return
 		}
 
-		isAdmin := s.AuthCheck(cookie.Value)
+		isAdmin := s.sessions.IsAdmin(cookie.Value)
 
 		if !isAdmin {
 			http.Redirect(w, r, "/login", http.StatusFound)
@@ -25,7 +25,7 @@ func (s Server) AdminOnly(next http.Handler) http.Handler {
 	})
 }
 
-func (s Server) Routes() http.Handler {
+func (s *Handler) Routes() http.Handler {
 	r := chi.NewRouter()
 
 	// static files

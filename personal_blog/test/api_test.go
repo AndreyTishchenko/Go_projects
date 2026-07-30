@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/app"
 )
 
 func TestAPIGetArticleResponses(t *testing.T) {
-	article := repository.Article{
+	article := app.Article{
 		ID:        2,
 		CreatedAt: time.Date(2026, 7, 2, 18, 25, 12, 0, time.UTC),
 		Title:     "API article",
@@ -25,7 +25,7 @@ func TestAPIGetArticleResponses(t *testing.T) {
 		t.Fatalf("GET /api/articles/2 status = %d, want %d", rr.Code, http.StatusOK)
 	}
 
-	var got repository.Article
+	var got app.Article
 	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
 		t.Fatalf("decode GET /api/articles/2 response: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestJSONAuthAndCreateArticle(t *testing.T) {
 		t.Fatalf("decode POST /api/articles response: %v", err)
 	}
 
-	article, err := repo.GetArticle(response.ID)
+	article, err := repo.Get(t.Context(), response.ID)
 	if err != nil {
 		t.Fatalf("created article not stored: %v", err)
 	}

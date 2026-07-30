@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/app"
 )
 
 func TestHomePageRendersArticles(t *testing.T) {
-	article := repository.Article{
+	article := app.Article{
 		ID:        7,
 		CreatedAt: time.Date(2026, 7, 2, 18, 25, 12, 0, time.UTC),
 		Title:     "Application testing",
@@ -50,7 +50,7 @@ func TestHomePageRepositoryError(t *testing.T) {
 }
 
 func TestArticlePageRendersArticleAndNotFound(t *testing.T) {
-	article := repository.Article{
+	article := app.Article{
 		ID:        3,
 		CreatedAt: time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC),
 		Title:     "Deep dive",

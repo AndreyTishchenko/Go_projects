@@ -1,4 +1,4 @@
-package server
+package http
 
 import (
 	"encoding/json"
@@ -10,10 +10,6 @@ import (
 type authPayload struct {
 	Name     string `json:"name"`
 	Password string `json:"password"`
-}
-
-func (s Server) sign() string {
-	return s.adminkey
 }
 
 func decodeAuth(r *http.Request) (authPayload, error) {
@@ -28,7 +24,7 @@ func decodeAuth(r *http.Request) (authPayload, error) {
 		}
 	} else {
 		if err := r.ParseForm(); err != nil {
-			return p, ErrInternalServerError
+			return p, ErrInternalServer
 		}
 		p.Name = r.FormValue("name")
 		p.Password = r.FormValue("password")
@@ -36,7 +32,7 @@ func decodeAuth(r *http.Request) (authPayload, error) {
 	return p, nil
 }
 
-func (s Server) authenticate(r *http.Request) (string, error) {
+func (s *Handler) authenticate(r *http.Request) (string, error) {
 	data, err := decodeAuth(r)
 	if err != nil {
 		return "", err
@@ -50,14 +46,15 @@ func (s Server) authenticate(r *http.Request) (string, error) {
 		return "", ErrEmptyPasswordField
 	}
 
-	if data.Password != s.adminPassword || data.Name != s.adminLogin {
+	token, ok := s.sessions.Authenticate(data.Name, data.Password)
+	if !ok {
 		return "", ErrBadCredentials
 	}
 
-	return s.sign(), nil
+	return token, nil
 }
 
-func (s Server) AuthHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "invalid method", http.StatusMethodNotAllowed)
 		return
@@ -102,11 +99,4 @@ func (s Server) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-}
-
-func (s Server) AuthCheck(key string) bool {
-	if key == s.adminkey {
-		return true
-	}
-	return false
 }

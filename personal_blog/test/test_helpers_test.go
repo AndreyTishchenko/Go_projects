@@ -1,26 +1,30 @@
 package test
 
 import (
+	"context"
 	"html/template"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/AndreyTishchenko/Go_projects/personal_blog/repository"
-	"github.com/AndreyTishchenko/Go_projects/personal_blog/server"
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/app"
+	articlehttp "github.com/AndreyTishchenko/Go_projects/personal_blog/internal/articles/http"
+	"github.com/AndreyTishchenko/Go_projects/personal_blog/internal/platform/session"
 )
 
 type fakeArticlesRepository struct {
-	articles map[int]repository.Article
+	articles map[int]app.Article
 	nextID   int
 	err      error
 }
 
-func newFakeArticlesRepository(articles ...repository.Article) *fakeArticlesRepository {
+func newFakeArticlesRepository(articles ...app.Article) *fakeArticlesRepository {
 	r := &fakeArticlesRepository{
-		articles: map[int]repository.Article{},
+		articles: map[int]app.Article{},
 		nextID:   1,
 	}
 
@@ -34,12 +38,12 @@ func newFakeArticlesRepository(articles ...repository.Article) *fakeArticlesRepo
 	return r
 }
 
-func (r *fakeArticlesRepository) GetArticles() ([]repository.Article, error) {
+func (r *fakeArticlesRepository) List(context.Context) ([]app.Article, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 
-	articles := make([]repository.Article, 0, len(r.articles))
+	articles := make([]app.Article, 0, len(r.articles))
 	for _, article := range r.articles {
 		articles = append(articles, article)
 	}
@@ -47,27 +51,27 @@ func (r *fakeArticlesRepository) GetArticles() ([]repository.Article, error) {
 	return articles, nil
 }
 
-func (r *fakeArticlesRepository) GetArticle(id int) (repository.Article, error) {
+func (r *fakeArticlesRepository) Get(_ context.Context, id int) (app.Article, error) {
 	if r.err != nil {
-		return repository.Article{}, r.err
+		return app.Article{}, r.err
 	}
 
 	article, ok := r.articles[id]
 	if !ok {
-		return repository.Article{}, repository.ErrArticleNotFound
+		return app.Article{}, app.ErrNotFound
 	}
 
 	return article, nil
 }
 
-func (r *fakeArticlesRepository) AddArticle(title string, body string) (int, error) {
+func (r *fakeArticlesRepository) Create(_ context.Context, title string, body string) (int, error) {
 	if r.err != nil {
 		return 0, r.err
 	}
 
 	id := r.nextID
 	r.nextID++
-	r.articles[id] = repository.Article{
+	r.articles[id] = app.Article{
 		ID:        id,
 		CreatedAt: time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC),
 		Title:     title,
@@ -77,27 +81,27 @@ func (r *fakeArticlesRepository) AddArticle(title string, body string) (int, err
 	return id, nil
 }
 
-func (r *fakeArticlesRepository) DeleteArticle(id int) error {
+func (r *fakeArticlesRepository) Delete(_ context.Context, id int) error {
 	if r.err != nil {
 		return r.err
 	}
 
 	if _, ok := r.articles[id]; !ok {
-		return repository.ErrArticleNotFound
+		return app.ErrNotFound
 	}
 
 	delete(r.articles, id)
 	return nil
 }
 
-func (r *fakeArticlesRepository) UpdateArticle(id int, title string, body string) error {
+func (r *fakeArticlesRepository) Update(_ context.Context, id int, title string, body string) error {
 	if r.err != nil {
 		return r.err
 	}
 
 	article, ok := r.articles[id]
 	if !ok {
-		return repository.ErrArticleNotFound
+		return app.ErrNotFound
 	}
 
 	article.Title = title
@@ -107,11 +111,14 @@ func (r *fakeArticlesRepository) UpdateArticle(id int, title string, body string
 	return nil
 }
 
-func newTestApplication(t *testing.T, repo repository.ArticlesRepository) (server.Server, http.Handler) {
+func newTestApplication(t *testing.T, repo app.Repository) (*articlehttp.Handler, http.Handler) {
 	t.Helper()
 
 	tmpl := template.Must(template.ParseGlob("../templates/*.html"))
-	s := server.NewServerConfig(repo, tmpl, "admin", "admin213")
+	service := app.NewService(repo)
+	sessions := session.NewManager("admin", "admin213")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := articlehttp.NewHandler(service, tmpl, sessions, logger)
 
 	return s, s.Routes()
 }
