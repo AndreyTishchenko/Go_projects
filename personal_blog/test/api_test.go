@@ -85,3 +85,20 @@ func TestJSONCreateArticleValidation(t *testing.T) {
 		t.Fatalf("POST /api/articles with empty title body = %q, want validation message", rr.Body.String())
 	}
 }
+
+func TestJSONUpdateMissingArticleReturnsNotFound(t *testing.T) {
+	_, handler := newTestApplication(t, newFakeArticlesRepository())
+	authCookie := loginAsAdmin(t, handler)
+
+	rr := performRequest(
+		handler,
+		http.MethodPost,
+		"/admin/change/404",
+		`{"title":"Updated title","body":"Updated body"}`,
+		authCookie,
+	)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("POST /admin/change/404 status = %d, want %d; body = %q", rr.Code, http.StatusNotFound, rr.Body.String())
+	}
+}
