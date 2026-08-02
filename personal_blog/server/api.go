@@ -27,9 +27,18 @@ func authCheck(w http.ResponseWriter, r *http.Request, s Server, isBrowser bool)
 				http.Error(w, "Cannot read cookies", http.StatusInternalServerError)
 				return err
 			}
+		} else {
+
 		}
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return err
+
+		if isBrowser {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return err
+		} else {
+			http.Error(w, "Auth is requiered", http.StatusUnauthorized)
+			return err
+		}
+
 	} else {
 		if s.AuthCheck(cookie.Value) {
 			return nil

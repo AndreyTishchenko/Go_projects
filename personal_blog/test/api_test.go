@@ -86,6 +86,21 @@ func TestJSONCreateArticleValidation(t *testing.T) {
 	}
 }
 
+func TestJSONCreateArticleWithoutAuthReturnsUnauthorized(t *testing.T) {
+	_, handler := newTestApplication(t, newFakeArticlesRepository())
+
+	rr := performRequest(
+		handler,
+		http.MethodPost,
+		"/api/articles",
+		`{"title":"New article","body":"New body"}`,
+	)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated POST /api/articles status = %d, want %d; body = %q", rr.Code, http.StatusUnauthorized, rr.Body.String())
+	}
+}
+
 func TestJSONUpdateMissingArticleReturnsNotFound(t *testing.T) {
 	_, handler := newTestApplication(t, newFakeArticlesRepository())
 	authCookie := loginAsAdmin(t, handler)
