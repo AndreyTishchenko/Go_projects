@@ -292,6 +292,11 @@ func (s Server) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		if err != nil {
+			if errors.Is(err, repository.ErrArticleNotFound) {
+				println("failed to update article", err.Error())
+				http.Error(w, "failed to update article", http.StatusNotFound)
+				return
+			}
 			println("failed to update article", err.Error())
 			http.Error(w, "failed to update article", http.StatusInternalServerError)
 			return
