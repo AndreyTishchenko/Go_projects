@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"html/template"
 	"log"
 	"net/http"
@@ -44,10 +45,15 @@ func main() {
 
 	articlesRepository := repository.NewArticlesPostgresRepository(db)
 
-	s := server.NewServerConfig(
+	s, err := server.NewServerConfig(
 		articlesRepository,
 		tmpl,
+		rand.Reader,
 	)
+
+	if err != nil {
+		log.Fatal("failed to create server config: ", err)
+	}
 
 	httpServer := http.Server{
 		Addr:              portNumber,

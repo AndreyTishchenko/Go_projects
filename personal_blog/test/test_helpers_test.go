@@ -1,6 +1,7 @@
 package test
 
 import (
+	"crypto/rand"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
@@ -113,7 +114,10 @@ func newTestApplication(t *testing.T, repo repository.ArticlesRepository) (serve
 	t.Setenv("ADMIN_PASSWORD", "admin213")
 
 	tmpl := template.Must(template.ParseGlob("../templates/*.html"))
-	s := server.NewServerConfig(repo, tmpl)
+	s, err := server.NewServerConfig(repo, tmpl, rand.Reader)
+	if err != nil {
+		t.Fatalf("create test server: %v", err)
+	}
 
 	return s, s.Routes()
 }
