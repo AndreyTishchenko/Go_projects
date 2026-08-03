@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"html/template"
 	"log"
@@ -16,9 +17,12 @@ const portNumber = ":8080"
 func main() {
 	tmpl := template.Must(template.ParseGlob("templates/*.html"))
 
-	s := server.NewServerConfig(&repository.ArticlesMemoryRepository{
+	s, err := server.NewServerConfig(&repository.ArticlesMemoryRepository{
 		DbPath: "db/articles/",
-	}, tmpl)
+	}, tmpl, rand.Reader)
+	if err != nil {
+		log.Fatal("failed to create server config: ", err)
+	}
 
 	http_server := http.Server{
 		Addr:              "localhost:8080",
