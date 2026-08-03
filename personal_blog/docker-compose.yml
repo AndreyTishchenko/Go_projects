@@ -1,0 +1,93 @@
+services:
+  app:
+    build: .
+    environment:
+      PORT: ${PORT:-3030}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      ADMIN_LOGIN: ${ADMIN_LOGIN:-admin123}
+      DATABASE_URL: postgres://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD:-blog}@db:5432/${POSTGRES_DB:-blog}?sslmode=disable
+    ports:
+      - "${PORT:-3030}:${PORT:-3030}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-blog}
+      POSTGRES_USER: ${POSTGRES_USER:-blog}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-blog}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-blog} -d ${POSTGRES_DB:-blog}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    image: golang:1.26-bookworm
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD:-blog}@db:5432/${POSTGRES_DB:-blog}?sslmode=disable
+    command: >
+      sh -c "
+      go install github.com/pressly/goose/v3/cmd/goose@latest &&
+      goose -dir db/migrations postgres $$DATABASE_URL up
+      "
+
+  test:
+    profiles: ["test"]
+    build: .
+    working_dir: /app
+    environment:
+      TEST_DATABASE_URL: postgres://blog_test:blog_test@test-db:5432/blog_test?sslmode=disable
+    depends_on:
+      test-migrate:
+        condition: service_completed_successfully
+    command: ["go", "test", "./..."]
+
+  test-db:
+    profiles: ["test"]
+    image: postgres:17
+    environment:
+      POSTGRES_DB: blog_test
+      POSTGRES_USER: blog_test
+      POSTGRES_PASSWORD: blog_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog_test -d blog_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  test-migrate:
+    profiles: ["test"]
+    image: golang:1.26-bookworm
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://blog_test:blog_test@test-db:5432/blog_test?sslmode=disable
+    command: >
+      sh -c "
+      go install github.com/pressly/goose/v3/cmd/goose@latest &&
+      goose -dir db/migrations postgres $$DATABASE_URL up
+      "
+
+volumes:
+  postgres_data:

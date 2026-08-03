@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -37,6 +38,9 @@ func decodeAuth(r *http.Request) (authPayload, error) {
 }
 
 func (s Server) authenticate(r *http.Request) (string, error) {
+	admin_login := os.Getenv("ADMIN_LOGIN")
+	admin_password := os.Getenv("ADMIN_PASSWORD")
+
 	data, err := decodeAuth(r)
 	if err != nil {
 		return "", err
@@ -50,7 +54,7 @@ func (s Server) authenticate(r *http.Request) (string, error) {
 		return "", ErrEmptyPasswordField
 	}
 
-	if data.Password != "admin213" || data.Name != "admin" {
+	if data.Password != admin_password || data.Name != admin_login {
 		return "", ErrBadCredentials
 	}
 

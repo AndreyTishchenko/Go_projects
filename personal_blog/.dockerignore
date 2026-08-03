@@ -1,0 +1,24 @@
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Version control and editor metadata
+.git
+.gitignore
+.idea
+.vscode
+
+# Local build and test artifacts
+bin/
+build/
+dist/
+tmp/
+*.exe
+*.out
+*.test
+coverage.*
+/personal_blog

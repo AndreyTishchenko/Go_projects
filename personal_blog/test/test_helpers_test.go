@@ -110,6 +110,8 @@ func (r *fakeArticlesRepository) UpdateArticle(id int, title string, body string
 
 func newTestApplication(t *testing.T, repo repository.ArticlesRepository) (server.Server, http.Handler) {
 	t.Helper()
+	t.Setenv("ADMIN_LOGIN", "admin")
+	t.Setenv("ADMIN_PASSWORD", "admin213")
 
 	tmpl := template.Must(template.ParseGlob("../templates/*.html"))
 	s, err := server.NewServerConfig(repo, tmpl, rand.Reader)
