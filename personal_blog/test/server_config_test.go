@@ -34,7 +34,7 @@ func TestNewServerConfigStopsWhenSessionTokenCreationFails(t *testing.T) {
 	wantErr := errors.New("random source failed")
 
 	_, err := server.NewServerConfig(
-		&repository.ArticlesMemoryRepository{},
+		&repository.ArticlesPostgresRepository{},
 		template.New("test"),
 		failingRandomSource{err: wantErr},
 	)

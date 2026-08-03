@@ -24,10 +24,6 @@ type ArticlesRepository interface {
 	UpdateArticle(id int, title string, body string) error
 }
 
-type ArticlesMemoryRepository struct {
-	DbPath string
-}
-
 var ErrArticleNotFound = errors.New("article not found")
 
 type ArticlesPostgresRepository struct {
